@@ -1,0 +1,14 @@
+.main {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+canvas {
+    border-radius: 5px;
+    border: 1px solid #222;
+}
+body {
+    background-color: #111;
+}
