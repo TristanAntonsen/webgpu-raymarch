@@ -1,9 +1,33 @@
+require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.26.1/min/vs' } });
+
+require(['vs/editor/editor.main'], function () {
+  var editor = monaco.editor.create(document.getElementById('container'), {
+    value: [
+      '@fragment\nfn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {',
+      '\t// Setting up uv coordinates',
+      '\tlet uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing',
+      '\tlet fragColor = vec4f(uv, 0.0, 1.0);',
+      '\treturn fragColor;',
+      '}'].join('\n'),
+    // language: 'javascript',
+    scrollbar: {
+      vertical: 'auto',
+    },
+    theme: "vs-dark",
+    automaticLayout: true, minimap: { enabled: false }
+  });
+  let text = editor.getValue();
+
+  let bindRun = editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
+    console.log(editor.getValue())
+  })
+});
 
 async function run() {
   // Loading shader from .wgsl file
   const shaderText = await fetch('./shader.wgsl')
     .then(result => result.text());
-    
+
   // Rendering texture to the canvas
   render(shaderText)
 }
@@ -87,7 +111,7 @@ async function render(shaderText) {
   device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 
 
-  
+
   // Creating the shaders (they get passed in as strings)
   const cellShaderModule = device.createShaderModule({
     label: 'Cell shader',
