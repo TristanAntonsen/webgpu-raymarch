@@ -1,5 +1,5 @@
 
-@group(0) @binding(0) var<uniform> rez: vec2f;
+@group(0) @binding(0) var<uniform> uniforms: vec3f;
 
 
 struct VertexInput {
@@ -50,7 +50,8 @@ fn getDist(p: vec2f) -> f32 {
     var c1 = sdCircle(p, vec2f(0., 0.),0.25);
     var b1 = sdRoundedBox(p, vec2f(0.375), vec4f(0.1, 0.0, 0.0, 0.1));
     let d = opSubtraction(b1, c1);
-    return d;
+    let t = sin(0.1 * uniforms.z) * 0.01;
+    return d + t;
 }
 
 // COORDINATE SYSTEM
@@ -71,8 +72,7 @@ fn getNormal(p: vec2f) -> vec2f {
 @fragment
 fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
-    let uv = 2.0 * (vec2(pos.x, pos.y) - 0.5 * rez) / min(rez.x, rez.y);
-
+    let uv = 2.0 * (vec2(pos.x, pos.y) - 0.5 * uniforms.xy) / min(uniforms.x, uniforms.y);
     let d = getDist(uv);
 
     let col0 = vec4f(0.1, 0.1, 0.1, 0.0);

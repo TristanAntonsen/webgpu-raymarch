@@ -65,7 +65,8 @@ async function main() {
   };
 
   // Create a uniform buffer that describes the grid.
-  const uniformArray = new Float32Array([X_RES, Y_RES]);
+  let time = 0.0;
+  const uniformArray = new Float32Array([X_RES, Y_RES, time]);
   const uniformBuffer = device.createBuffer({
       label: "Grid Uniforms",
       size: uniformArray.byteLength,
@@ -112,6 +113,7 @@ async function main() {
 
           // Copying the vertices into the buffer's memory
           device.queue.writeBuffer(vertexBuffer, /*bufferOffset=*/0, vertices);
+          uniformArray[2] += 1.0;
           device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 
           // Provides an interface for recording GPU commands
