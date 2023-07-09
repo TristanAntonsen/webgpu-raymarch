@@ -8,12 +8,28 @@ async function main() {
   // Getting the canvas & setting the resolution
   let canvas = document.querySelector("canvas");
 
-  const X_RES = 720;
-  const Y_RES = 720;
+  const X_RES = 1080;
+  const Y_RES = 1080;
 
   canvas.width = X_RES;
   canvas.height = Y_RES;
 
+  // download canvas
+  function saveCanvas(e) {
+    const link = document.createElement('a');
+    link.download = 'shader.png';
+    link.href = canvas.toDataURL();
+    link.click();
+    link.delete;
+  }
+  document.getElementById("download").addEventListener("click", saveCanvas);
+  document.addEventListener('keydown', (event) => {
+    if (event.key == "s" && event.ctrlKey) {
+      saveCanvas();
+      event.preventDefault();
+    }
+  });
+  
   // Adding mouse functions
   let MOUSE_X = 0.0;
   let MOUSE_Y = 0.0;
@@ -23,13 +39,12 @@ async function main() {
   function updateMouse(e) {
     let domain = canvas.getBoundingClientRect();
     if (mousePressed) {
-      MOUSE_Y = (e.clientY - domain.top) - X_RES / 2;
-      MOUSE_X = (e.clientX - domain.left) - Y_RES / 2;
+      MOUSE_X = (e.clientX - domain.left) - X_RES / 2;
+      MOUSE_Y = (e.clientY - domain.top) - Y_RES / 2;
       console.log("MOUSE:", MOUSE_X / X_RES, MOUSE_Y / Y_RES)
-      console.log(mouseUniformArray)
     }
   }
-  
+
   canvas.addEventListener("mousemove", updateMouse);
   canvas.addEventListener("mousedown", (event) => { mousePressed = true });
   canvas.addEventListener("mouseup", (event) => { mousePressed = false });

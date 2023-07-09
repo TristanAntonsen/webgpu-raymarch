@@ -4,13 +4,14 @@
 
 <head>
     <meta charset="utf-8">
-    <title>WebGPU Life</title>
+    <title>WebGPU Ray Marching</title>
     <link rel="stylesheet" href="app.css">
 </head>
 
 <body>
-    <div class="main">
-        <canvas width="512" height="512"></canvas>
+    <div class="main" id="main">
+        <canvas width="512" height="512" id="canvas"></canvas>
+        <button id="download">Download (ctrl+s)</button>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.26.1/min/vs/loader.min.js"></script>
     <script type="module" src="main.js"></script>
