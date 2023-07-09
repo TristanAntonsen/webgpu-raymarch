@@ -1,3 +1,6 @@
+let m = document.querySelector("canvas");
+
+
 async function main() {
   const shaderText = await fetch('./shader.wgsl')
     .then(result => result.text());
@@ -5,11 +8,31 @@ async function main() {
   // Getting the canvas & setting the resolution
   let canvas = document.querySelector("canvas");
 
-  const X_RES = 1080;
+  const X_RES = 720;
   const Y_RES = 720;
 
   canvas.width = X_RES;
   canvas.height = Y_RES;
+
+  // Adding mouse functions
+  let MOUSE_X = 0.0;
+  let MOUSE_Y = 0.0;
+
+  let mousePressed = false;
+
+  function updateMouse(e) {
+    let domain = canvas.getBoundingClientRect();
+    if (mousePressed) {
+      MOUSE_Y = (e.clientY - domain.top) - X_RES / 2;
+      MOUSE_X = (e.clientX - domain.left) - Y_RES / 2;
+      console.log("MOUSE:", MOUSE_X / X_RES, MOUSE_Y / Y_RES)
+      console.log(mouseUniformArray)
+    }
+  }
+  
+  canvas.addEventListener("mousemove", updateMouse);
+  canvas.addEventListener("mousedown", (event) => { mousePressed = true });
+  canvas.addEventListener("mouseup", (event) => { mousePressed = false });
 
   // Setting up the GPU Pipeline
   // Checking to make sure browser supports WebGPU
@@ -68,7 +91,7 @@ async function main() {
   const rezUniformArray = new Float32Array([X_RES, Y_RES]);
   const rezBuffer = device.createBuffer({
     label: "Resolution Uniform",
-    size: 12, // unknown issue, had to manually set @ 12
+    size: rezUniformArray.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
@@ -81,7 +104,7 @@ async function main() {
   });
 
   // Create a uniform buffer that tracks the mouse position.
-  const mouseUniformArray = new Float32Array([0, 0]);
+  const mouseUniformArray = new Float32Array([MOUSE_X, MOUSE_Y]);
   const mouseBuffer = device.createBuffer({
     label: "Mouse Uniform",
     size: mouseUniformArray.byteLength,
@@ -141,14 +164,20 @@ async function main() {
   const draw = () => {
     const run = () => {
 
+      // Increment time
+      timeUniformArray[0] += 1.0;
+
+      mouseUniformArray[0] = MOUSE_X;
+      mouseUniformArray[1] = MOUSE_Y;
+
       // Copying the vertices into the buffer's memory
       device.queue.writeBuffer(vertexBuffer, /*bufferOffset=*/0, vertices);
       device.queue.writeBuffer(rezBuffer, 0, rezUniformArray);
       device.queue.writeBuffer(timeBuffer, 0, timeUniformArray);
       device.queue.writeBuffer(mouseBuffer, 0, mouseUniformArray);
-      
-      // Increment time
-      timeUniformArray[0] += 1.0;
+
+
+
 
       // Provides an interface for recording GPU commands
       const encoder = device.createCommandEncoder();

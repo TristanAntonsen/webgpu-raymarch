@@ -1,5 +1,5 @@
 
-@group(0) @binding(0) var<uniform> rez: vec3f;
+@group(0) @binding(0) var<uniform> rez: vec2f;
 @group(0) @binding(1) var<uniform> time: f32;
 @group(0) @binding(2) var<uniform> mouse: vec2f;
 
@@ -49,11 +49,12 @@ fn opSubtraction(d1: f32, d2: f32) -> f32 {
 }
 
 fn getDist(p: vec2f) -> f32 {
-    var c1 = sdCircle(p, vec2f(0., 0.),0.25);
+    let m = mouse / rez;
+    var c1 = sdCircle(p, m * 2.0,0.25);
     var b1 = sdRoundedBox(p, vec2f(0.375), vec4f(0.1, 0.0, 0.0, 0.1));
     let d = opSubtraction(b1, c1);
     let t = sin(0.05 * time) * 0.02;
-    return d + t;
+    return c1 + t;
 }
 
 // COORDINATE SYSTEM
