@@ -65,14 +65,22 @@ async function main() {
   };
 
   // Create a uniform buffer that describes the grid.
-  let time = 0.0;
-  const uniformArray = new Float32Array([X_RES, Y_RES, time]);
-  const uniformBuffer = device.createBuffer({
-    label: "Grid Uniforms",
-    size: uniformArray.byteLength,
+  const rezUniformArray = new Float32Array([X_RES, Y_RES]);
+  const rezBuffer = device.createBuffer({
+    label: "Resolution Uniform",
+    size: 12, // unknown issue, had to manually set @ 12
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
+  // Create a uniform buffer that tracks the time.
+  const timeUniformArray = new Float32Array([0.0]);
+  const timeBuffer = device.createBuffer({
+    label: "Time Uniform",
+    size: timeUniformArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  // Create a uniform buffer that tracks the mouse position.
   const mouseUniformArray = new Float32Array([0, 0]);
   const mouseBuffer = device.createBuffer({
     label: "Mouse Uniform",
@@ -91,6 +99,7 @@ async function main() {
     entries: [
       { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
     ]
   })
 
@@ -123,8 +132,9 @@ async function main() {
     label: "Cell renderer bind group",
     layout: cellPipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: { buffer: uniformBuffer } },
-      { binding: 1, resource: { buffer: mouseBuffer } },
+      { binding: 0, resource: { buffer: rezBuffer } },
+      { binding: 1, resource: { buffer: timeBuffer } },
+      { binding: 2, resource: { buffer: mouseBuffer } },
     ],
   });
 
@@ -133,11 +143,12 @@ async function main() {
 
       // Copying the vertices into the buffer's memory
       device.queue.writeBuffer(vertexBuffer, /*bufferOffset=*/0, vertices);
-      device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+      device.queue.writeBuffer(rezBuffer, 0, rezUniformArray);
+      device.queue.writeBuffer(timeBuffer, 0, timeUniformArray);
       device.queue.writeBuffer(mouseBuffer, 0, mouseUniformArray);
       
       // Increment time
-      uniformArray[2] += 1.0;
+      timeUniformArray[0] += 1.0;
 
       // Provides an interface for recording GPU commands
       const encoder = device.createCommandEncoder();
