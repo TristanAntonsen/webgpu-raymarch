@@ -1,27 +1,12 @@
-
 @group(0) @binding(0) var<uniform> rez: vec2f;
-@group(0) @binding(1) var<uniform> time: f32;
-@group(0) @binding(2) var<uniform> mouse: vec2f;
-
 
 struct VertexInput {
     @location(0) pos: vec2f,
 };
+
 struct VertexOutput {
     @builtin(position) pos: vec4f,
 };
-
-@vertex
-fn vertexMain(input: VertexInput) ->
-    VertexOutput {
-    var output: VertexOutput;
-    output.pos = vec4f(input.pos, 0, 1);
-    return output;
-}
-
-fn add_two(i: i32, b: f32) -> i32 {
-  return i + 2;  // A formal parameter is available for use in the body.
-}
 
 fn sdCircle(p: vec2f, c: vec2f, r: f32) -> f32 {
 
@@ -48,51 +33,87 @@ fn opSubtraction(d1: f32, d2: f32) -> f32 {
     return max(-d2, d1);
 }
 
-fn getDist(p: vec2f) -> f32 {
-    let m = mouse / rez;
-    var c1 = sdCircle(p, m * 2.0,0.25);
-    var b1 = sdRoundedBox(p, vec2f(0.375), vec4f(0.1, 0.0, 0.0, 0.1));
-    let d = opSubtraction(b1, c1);
-    let t = sin(0.05 * time) * 0.02;
-    return c1 + t;
+fn getDist(p: vec3f) -> f32 {
+    let r = 0.5;
+    return length(p)-r;
 }
 
 // COORDINATE SYSTEM
 // X = [-1,+1], Right is positive
 // Y = [-1,+1], Down is positive
 
-fn getNormal(p: vec2f) -> vec2f {
+fn getNormal(p: vec3f) -> vec3f {
     let epsilon = 0.0001;
-    let dx = vec2(epsilon, 0.);
-    let dy = vec2(0., epsilon);
+    let dx = vec3(epsilon, 0., 0.0);
+    let dy = vec3(0., epsilon, 0.0);
+    let dz = vec3(0., 0.0, epsilon);
 
     let ddx = getDist(p + dx) - getDist(p - dx);
     let ddy = getDist(p + dy) - getDist(p - dy);
+    let ddz = getDist(p + dz) - getDist(p - dz);
     
-    return normalize(vec2f(ddx, ddy));
+    return normalize(vec3f(ddx, ddy, ddz));
+}
+
+fn rayDirection(p: vec2f, ro: vec3f) -> vec3f {
+
+    // let rd = normalize(llc + p.x * horizontal + p.y * vertical - ro);
+    let rd = normalize(vec3f(p, 0.0)-ro);
+    return rd;
+}
+
+fn rayMarch(ro: vec3f, rd: vec3f) -> f32 {
+    var d = 0.0;
+    let MAX_STEPS = 1000;
+    let SURF_DIST = 0.001;
+    let MAX_DIST = 100.0;
+    var i: i32 = 0;
+    loop {
+        if i >= MAX_STEPS { break; }
+        let p = ro + rd * d;
+        let ds = getDist(p);
+        d += ds;
+        if d >= MAX_DIST || ds < SURF_DIST {
+            break;
+        }
+        i++;
+    }
+    return d;
+
+}
+
+
+@vertex
+fn vertexMain(input: VertexInput) ->
+    VertexOutput {
+    var output: VertexOutput;
+    output.pos = vec4f(input.pos, 0, 1);
+    return output;
 }
 
 @fragment
 fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
-    let uv = 2.0 * (vec2(pos.x, pos.y) - 0.5 * rez.xy) / min(rez.x, rez.y);
-    let d = getDist(uv);
+    let uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing
     
-    let col0 = vec4f(0.1, 0.1, 0.1, 0.0);
-    let col1 = vec4f(1.0);
-    let col2 = vec4f(0.85, 0.85, 0.85, 1.0);
-    
-    let f = 200.0; // Ripple frequency
-    let fac = 0.5 * sin(f * d) + 0.5; // creating ripples & shifting from 0 to 1
-    // let fac = 0.1 * sin(f * d * 0.5) + 1.;
 
-    let n = getNormal(uv);
-    let col3 = vec4f(n, 1.0, 1.0);
-    let prettyColor: vec4f = mix(col1, col3, fac); 
-    // let prettyColor = fac * vec4(n.x, n.y, 1.0, 1.0);
-    // var prettyColor = vec4(n.x, n.y, 1.0, 1.0);
-    let blend = 250.0;
-    var fragColor = mix(col0, prettyColor, smoothstep(0.0,1.0, blend * d) );
-    // var fragColor = vec4f(uv, 0.0, 1.0);
+    let ro = vec3f(0., 0., -1.0);
+    let rd = rayDirection(uv, ro);
+    let d = rayMarch(ro, rd);
+    let lightPos = vec3f(1,-1,-2);
+    let lightColor = vec3f(1.0);
+    var fragColor = vec4f(0.1);
+    let ambient = vec4f(0.05);
+    let intensity = 5.0;
+
+    if (d <= 100.0) {
+        let p = ro + rd * d;
+        let n = getNormal(p) + 1.0;
+        let light = dot(n, normalize(lightPos))*.5+.5;
+        let lightDist = length(lightPos-p);
+        fragColor += ambient * light;
+        fragColor = vec4f(light) * intensity * 1.0 / (lightDist*lightDist)+ ambient;
+    }
+
     return fragColor;
 } 
