@@ -103,6 +103,7 @@ fn sdRoundedBox(p: vec2f, b: vec2f, r: vec4f) -> f32 {
     return min(max(q.x,q.y),0.0) + length(max(q,vec2f(0.0))) - rad.x;
 }
 
+
 fn opSmoothUnion(d1: f32, d2: f32, k: f32) -> f32 {
     let h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
     return mix( d2, d1, h ) - k*h*(1.0-h);
@@ -111,6 +112,8 @@ fn opSmoothSubtraction(d1: f32, d2: f32, k: f32) -> f32 {
     let h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
     return mix( d1, -d2, h ) + k*h*(1.0-h);
 }
+
+fn opUnion(d1: f32, d2: f32 ) -> f32 { return min(d1,d2); }
 
 fn opSubtraction(d1: f32, d2: f32) -> f32 {
     //NOTE: Flipped order because it makes more sense to me
@@ -121,7 +124,14 @@ fn opIntersection(d1: f32, d2: f32) -> f32 {
 }
 
 fn getDist(p: vec3f) -> f32 {
-    let d = rippleSphere(p);
+    let r = 0.3;
+    var d = sdSphere(p, vec3f(-0.375, -0.375, 0.0), r);
+    d = opUnion(d, sdSphere(p, vec3f(0.375, -0.375, 0.0), r)) + 0.0025 * sin(200.0 * p.x);
+    d = opUnion(d, sdSphere(p, vec3f(-0.375, 0.375, 0.0), r));
+    d = opUnion(d, sdSphere(p, vec3f(0.375, 0.375, 0.0), r));
+    d = opSmoothSubtraction(d, sdSphere(p, vec3f(2.0 * mouse / rez, 0.0), 0.15), 0.15);
+    d = opUnion(d, sdSphere(p, vec3f(2.0 * mouse / rez, 0.0), 0.15));
+
     return d;
 }
 
@@ -189,7 +199,7 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
     let uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing
 
-    let ro = vec3f(0., 0., -1.0);
+    let ro = vec3f(0., 0., -2.0);
     let rd = rayDirection(uv, ro);
     let d = rayMarch(ro, rd);
 
@@ -198,21 +208,23 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
 
     // let lightPos = vec3f(1,-1, -2);
     let lightPos = vec3f(lx,-1, lz);
+    // let lightPos = vec3f(2.0 * mouse / rez, 0.0);
     let lightColor = vec3f(1.0);
+    let lightPower = 4.0;
     var fragColor = vec4f(0.);
 
     if (d <= 100.0) {
         let p = ro + rd * d;
+        let N = getNormal(p);
 
         // PBR Shading
         // material parameters
         let albedo = vec3f(1.0, 0.0, 0.0);
-        let roughness = 0.2;
+        let roughness = 0.4;
         let metallic = 0.0;
         var F0 = vec3(0.04);
         F0 = mix(F0, albedo, metallic);
 
-        let N = getNormal(p);
 
         // reflectance equation
         // radiance
@@ -241,7 +253,7 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
             
         // add to outgoing radiance Lo
         let NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL * 4.0; 
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * lightPower; 
         
         let ambient = vec3f(0.0025) * albedo;
         var color = ambient + Lo;
