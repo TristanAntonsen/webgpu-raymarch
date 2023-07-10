@@ -11,7 +11,7 @@ struct VertexOutput {
 };
 
 // Ray marching constants
-const MAX_STEPS = 1000;
+const MAX_STEPS = 5000;
 const SURF_DIST = 0.001;
 const MAX_DIST = 100.0;
 const PI = 3.14159265359;
@@ -89,6 +89,11 @@ fn gradientNoise( p : vec3f ) -> f32
                           dot( simpleHash( i + vec3(1.0,1.0,1.0) ), f - vec3(1.0,1.0,1.0) ), u.x), u.y), u.z );
 }
 
+fn sdPlane( p: vec3f, n: vec3f, h: f32 ) -> f32
+{
+  return dot(p,normalize(n)) + h;
+}
+
 fn sdSphere(p: vec3f, c: vec3f, r: f32) -> f32 {
 
     return length(p-c) - r;
@@ -124,14 +129,11 @@ fn opIntersection(d1: f32, d2: f32) -> f32 {
 }
 
 fn getDist(p: vec3f) -> f32 {
-    let r = 0.3;
-    var d = sdSphere(p, vec3f(-0.375, -0.375, 0.0), r);
-    d = opUnion(d, sdSphere(p, vec3f(0.375, -0.375, 0.0), r)) + 0.0025 * sin(200.0 * p.x);
-    d = opUnion(d, sdSphere(p, vec3f(-0.375, 0.375, 0.0), r));
-    d = opUnion(d, sdSphere(p, vec3f(0.375, 0.375, 0.0), r));
-    d = opSmoothSubtraction(d, sdSphere(p, vec3f(2.0 * mouse / rez, 0.0), 0.15), 0.15);
-    d = opUnion(d, sdSphere(p, vec3f(2.0 * mouse / rez, 0.0), 0.15));
-
+    let r = 0.6;
+    var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
+    let off = 0.4;
+    var d = opSubtraction(s, sdPlane(p, vec3f(1., 0., 0.), off));
+    d = opSubtraction(d, sdPlane(p, vec3f(-1., 0., 0.), off));
     return d;
 }
 
@@ -163,9 +165,26 @@ fn getNormal(p: vec3f) -> vec3f {
 
 fn rayDirection(p: vec2f, ro: vec3f) -> vec3f {
 
-    // let rd = normalize(llc + p.x * horizontal + p.y * vertical - ro);
-    let rd = normalize(vec3f(p, 0.0)-ro);
-    return rd;
+    // screen orientation
+    let cameraTarget = vec3f(0., 0., 1.);
+    let vup = vec3f(0., 1.0, 0.0);
+    let aspectRatio = rez.y / rez.x;
+
+
+    let vw = normalize(ro - cameraTarget);
+    let vu = normalize(cross(vup, vw));
+    let vv = cross(vw, vu);
+    let theta = radians(30.); // half FOV
+    let viewport_height = 2. * tan(theta);
+    let viewport_width = aspectRatio * viewport_height;
+    let horizontal = -viewport_width * vu;
+    let vertical = viewport_height * vv;
+    let focus_dist = length(ro - cameraTarget);
+    let center = ro - vw * focus_dist;
+
+    let rd = center + p.x * horizontal + p.y * vertical - ro;
+
+    return normalize(rd);
 }
 
 fn rayMarch(ro: vec3f, rd: vec3f) -> f32 {
@@ -199,15 +218,15 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
     let uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing
 
-    let ro = vec3f(0., 0., -2.0);
+    let ro = vec3f(0., 0., -5.0);
     let rd = rayDirection(uv, ro);
     let d = rayMarch(ro, rd);
 
     var lx = 1.0 * sin(0.025 * time);
     var lz = 1.0 * cos(0.025 * time);
-
-    // let lightPos = vec3f(1,-1, -2);
     let lightPos = vec3f(lx,-1, lz);
+    // let lightPos = vec3f(1,-1, -1);
+
     // let lightPos = vec3f(2.0 * mouse / rez, 0.0);
     // let lightColor = vec3f(1.0,0.95,0.95);
     // let lightColor = vec3f(0.9, 1.0, 1.0);
@@ -221,8 +240,8 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
 
         // PBR Shading
         // material parameters
-        let albedo = vec3f(1.0);
-        let roughness = 0.2;
+        let albedo = vec3f(0.0);
+        let roughness = 0.8;
         let metallic = 0.0;
         var F0 = vec3(0.04);
         F0 = mix(F0, albedo, metallic);
