@@ -209,9 +209,11 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // let lightPos = vec3f(1,-1, -2);
     let lightPos = vec3f(lx,-1, lz);
     // let lightPos = vec3f(2.0 * mouse / rez, 0.0);
-    let lightColor = vec3f(1.0);
-    let lightPower = 4.0;
-    var fragColor = vec4f(0.);
+    // let lightColor = vec3f(1.0,0.95,0.95);
+    // let lightColor = vec3f(0.9, 1.0, 1.0);
+    let lightColor = vec3f(1.0, 1.0, 0.9);
+    let lightPower = 12.0;
+    var fragColor = vec4f(mix(0.2, 0.3, smoothstep(0., 1., uv.y)));
 
     if (d <= 100.0) {
         let p = ro + rd * d;
@@ -219,8 +221,8 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
 
         // PBR Shading
         // material parameters
-        let albedo = vec3f(1.0, 0.0, 0.0);
-        let roughness = 0.4;
+        let albedo = vec3f(1.0);
+        let roughness = 0.2;
         let metallic = 0.0;
         var F0 = vec3(0.04);
         F0 = mix(F0, albedo, metallic);
