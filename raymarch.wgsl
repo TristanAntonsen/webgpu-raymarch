@@ -10,11 +10,56 @@ struct VertexOutput {
     @builtin(position) pos: vec4f,
 };
 
-
 // Ray marching constants
 const MAX_STEPS = 1000;
 const SURF_DIST = 0.001;
 const MAX_DIST = 100.0;
+const PI = 3.14159265359;
+
+////////////////////////////////////////////////////////////////
+// PBR Helper functions
+
+fn DistributionGGX(N: vec3f, H: vec3f, roughness: f32) -> f32
+{
+    let a      = roughness*roughness;
+    let a2     = a*a;
+    let NdotH  = max(dot(N, H), 0.0);
+    let NdotH2 = NdotH*NdotH;
+	
+    let num   = a2;
+    var denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+	
+    return num / denom;
+}
+
+fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32
+{
+    let r = (roughness + 1.0);
+    let k = (r*r) / 8.0;
+
+    let num   = NdotV;
+    let denom = NdotV * (1.0 - k) + k;
+	
+    return num / denom;
+}
+
+fn GeometrySmith(N: vec3f, V: vec3f, L: vec3f, roughness: f32) -> f32
+{
+    let NdotV = max(dot(N, V), 0.0);
+    let NdotL = max(dot(N, L), 0.0);
+    let ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    let ggx1  = GeometrySchlickGGX(NdotL, roughness);
+	
+    return ggx1 * ggx2;
+}
+
+fn fresnelSchlick(cosTheta: f32, F0: vec3f) -> vec3f
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+} 
+
+////////////////////////////////////////////////////////////////
 
 fn simpleHash( p0: vec3f ) -> vec3f
 // Adapted from iq: https://www.shadertoy.com/view/Xsl3Dl
@@ -62,6 +107,10 @@ fn opSmoothUnion(d1: f32, d2: f32, k: f32) -> f32 {
     let h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
     return mix( d2, d1, h ) - k*h*(1.0-h);
 }
+fn opSmoothSubtraction(d1: f32, d2: f32, k: f32) -> f32 {
+    let h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
+    return mix( d1, -d2, h ) + k*h*(1.0-h);
+}
 
 fn opSubtraction(d1: f32, d2: f32) -> f32 {
     //NOTE: Flipped order because it makes more sense to me
@@ -72,9 +121,17 @@ fn opIntersection(d1: f32, d2: f32) -> f32 {
 }
 
 fn getDist(p: vec3f) -> f32 {
-    // let n = gradientNoise(100.0 * p + 0.01);
-    let s = sdSphere(p, vec3f(0.), 0.25);
-    return s;
+    let d = rippleSphere(p);
+    return d;
+}
+
+fn rippleSphere(p: vec3f) -> f32 {
+    let n = gradientNoise(100.0 * p + 0.01);
+    let s = sdSphere(p, vec3f(0.), 0.5) + 0.0025 * sin(200.0 * p.x);
+    let s2 = sdSphere(p, vec3f(0.375, -0.375, -0.375), 0.375);
+    let d = opSmoothSubtraction(s, s2, 0.025);
+    // return s + 0.001 * n;
+    return d;
 }
 
 // COORDINATE SYSTEM
@@ -135,19 +192,65 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     let ro = vec3f(0., 0., -1.0);
     let rd = rayDirection(uv, ro);
     let d = rayMarch(ro, rd);
-    let lightPos = vec3f(1,-1,-2);
+
+    var lx = 1.0 * sin(0.025 * time);
+    var lz = 1.0 * cos(0.025 * time);
+
+    // let lightPos = vec3f(1,-1, -2);
+    let lightPos = vec3f(lx,-1, lz);
     let lightColor = vec3f(1.0);
-    var fragColor = vec4f(0.1);
-    let ambient = vec4f(0.05);
-    let intensity = 5.0;
+    var fragColor = vec4f(0.);
 
     if (d <= 100.0) {
         let p = ro + rd * d;
-        let n = getNormal(p) + 1.0;
-        let light = dot(n, normalize(lightPos))*.5+.5;
-        let lightDist = length(lightPos-p);
-        fragColor += ambient * light;
-        fragColor = vec4f(light) * intensity * 1.0 / (lightDist*lightDist)+ ambient;
+
+        // PBR Shading
+        // material parameters
+        let albedo = vec3f(1.0, 0.0, 0.0);
+        let roughness = 0.2;
+        let metallic = 0.0;
+        var F0 = vec3(0.04);
+        F0 = mix(F0, albedo, metallic);
+
+        let N = getNormal(p);
+
+        // reflectance equation
+        // radiance
+        let V = -rd;
+
+        var Lo = vec3f(0.);
+        // calculate per-light radiance
+        let L = normalize(lightPos - p);
+        let H = normalize(V + L);
+        let distance    = length(lightPos - p);
+        let attenuation = 1.0 / (distance * distance);
+        let radiance    = lightColor * attenuation;        
+        
+        // cook-torrance brdf
+        let NDF = DistributionGGX(N, H, roughness);        
+        let G   = GeometrySmith(N, V, L, roughness);      
+        let F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
+        
+        let kS = F;
+        var kD = vec3f(1.0) - kS;
+        kD *= 1.0 - metallic;	  
+        
+        let numerator   = NDF * G * F;
+        let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        let specular    = numerator / denominator;  
+            
+        // add to outgoing radiance Lo
+        let NdotL = max(dot(N, L), 0.0);                
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * 4.0; 
+        
+        let ambient = vec3f(0.0025) * albedo;
+        var color = ambient + Lo;
+        
+        color = color / (color + vec3f(1.0));
+        color = pow(color, vec3f(1.0/2.2));  
+    
+        fragColor = vec4(color, 1.0);
+        
     }
 
     return fragColor;
