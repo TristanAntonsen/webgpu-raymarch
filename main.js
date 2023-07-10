@@ -1,15 +1,19 @@
-let m = document.querySelector("canvas");
 
+document.addEventListener('keydown', (event) => {
+  if (event.key == "r" && event.ctrlKey) {
+    main();
+  }
+});
 
 async function main() {
-  const shaderText = await fetch('./shader.wgsl')
+  const shaderText = await fetch('./raymarch.wgsl')
     .then(result => result.text());
 
   // Getting the canvas & setting the resolution
   let canvas = document.querySelector("canvas");
 
-  const X_RES = 1080;
-  const Y_RES = 1080;
+  const X_RES = 720;
+  const Y_RES = 720;
 
   canvas.width = X_RES;
   canvas.height = Y_RES;
@@ -22,14 +26,17 @@ async function main() {
     link.click();
     link.delete;
   }
-  document.getElementById("download").addEventListener("click", saveCanvas);
+  // document.getElementById("download").addEventListener("click", saveCanvas);
   document.addEventListener('keydown', (event) => {
     if (event.key == "s" && event.ctrlKey) {
       saveCanvas();
       event.preventDefault();
     }
   });
-  
+
+  // fps counter
+  let fps = document.getElementById("fps");
+
   // Adding mouse functions
   let MOUSE_X = 0.0;
   let MOUSE_Y = 0.0;
@@ -176,9 +183,14 @@ async function main() {
     ],
   });
 
+  let frameCount = 0;
+  let lastTime = performance.now();
   const draw = () => {
+    // if ( frameCount < 10 ) {
+    //   saveCanvas();
+    //   frameCount += 1;
+    // }
     const run = () => {
-
       // Increment time
       timeUniformArray[0] += 1.0;
 
@@ -190,7 +202,6 @@ async function main() {
       device.queue.writeBuffer(rezBuffer, 0, rezUniformArray);
       device.queue.writeBuffer(timeBuffer, 0, timeUniformArray);
       device.queue.writeBuffer(mouseBuffer, 0, mouseUniformArray);
-
 
 
 
@@ -220,7 +231,10 @@ async function main() {
       device.queue.submit([encoder.finish()]);
     }
     run();
-    run();
+    let time = performance.now();
+    let timeDelta = time - lastTime;
+    lastTime = time;
+    fps.innerText = Math.round(timeDelta);
     requestAnimationFrame(draw);
     // setTimeout(draw, 100.0);
   }
