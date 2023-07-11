@@ -12,8 +12,8 @@ async function main() {
   // Getting the canvas & setting the resolution
   let canvas = document.querySelector("canvas");
 
-  const X_RES = 720;
-  const Y_RES = 720;
+  const X_RES = 1440;
+  const Y_RES = 1440;
 
   canvas.width = X_RES;
   canvas.height = Y_RES;
@@ -231,10 +231,10 @@ async function main() {
       device.queue.submit([encoder.finish()]);
     }
     run();
-    let time = performance.now();
-    let timeDelta = time - lastTime;
-    lastTime = time;
-    fps.innerText = Math.round(timeDelta);
+    // let time = performance.now();
+    // let timeDelta = time - lastTime;
+    // lastTime = time;
+    // fps.innerText = Math.round(timeDelta);
     requestAnimationFrame(draw);
     // setTimeout(draw, 100.0);
   }
