@@ -96,6 +96,31 @@ fn Rot(a: f32) -> mat2x2f {
     return mat2x2f(c, -s, s, c);
 }
 
+
+fn rotY(p: vec3f, a: f32) -> vec3f {
+    let s = sin(a);
+    let c = cos(a);
+    let m = mat3x3f(
+        c, 0., s,
+        0., 1., 0.,
+        -s, 0., c,
+        );
+    return m * p;
+}
+
+fn rotZ(p: vec3f, a: f32) -> vec3f {
+    let s = sin(a);
+    let c = cos(a);
+    let m = mat3x3f(
+        c, -s, 0.,
+        s,  c, 0.,
+        0., 0., 1.
+        );
+        
+    return m * p;
+}
+
+
 fn sdPlane( p: vec3f, n: vec3f, h: f32 ) -> f32
 {
   return dot(p,normalize(n)) + h;
@@ -106,15 +131,12 @@ fn sdSphere(p: vec3f, c: vec3f, r: f32) -> f32 {
     return length(p-c) - r;
 }
 
-fn sdRoundedBox(p: vec2f, b: vec2f, r: vec4f) -> f32 {
-    var rad = vec4f(0.0);
-    rad = select(r, vec4f(r.z, r.w, r.z, r.w), p.x>0.0);
-    rad.x = select(rad.y, rad.x, p.y>0.0);
-    var q = abs(p)-b+rad.x;
-
-    return min(max(q.x,q.y),0.0) + length(max(q,vec2f(0.0))) - rad.x;
+fn sdRoundBox( po: vec3f, c: vec3f, b: vec3f, r: f32 ) -> f32
+{
+    let p = po - c;
+    let q = abs(p) - b;
+    return length(max(q,vec3f(0.0))) + min(max(q.x,max(q.y,q.z)),0.0) - r;
 }
-
 
 fn opSmoothUnion(d1: f32, d2: f32, k: f32) -> f32 {
     let h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
@@ -137,22 +159,38 @@ fn opIntersection(d1: f32, d2: f32) -> f32 {
 
 fn orbitControls(po: vec3f) -> vec3f {
 
-    let m = (vec2(mouse.x, mouse.y) / rez - 0.5) * 2.0; // normalizing
+    let m = (vec2f(mouse.x, mouse.y) / rez) + 0.5;
     var p = po;
-    let rxz = p.xz * Rot((-m.x*TAU));
-    p = vec3f(rxz.x, p.y, rxz.y);
+
+    p = rotY(po, -m.x*TAU);
+    p = rotZ(p, m.y*PI);
+    
     return p;
 }
 
 fn getDist(po: vec3f) -> f32 {
     let p = orbitControls(po);
-    let r = 0.6;
-    var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
-    var d = opSmoothSubtraction(s, sdPlane(p, vec3f(-1., 0., 0.), 0.5), 0.025);
-    d = opSmoothSubtraction(d, sdPlane(p, vec3f(1., 0., 0.), 0.5), 0.025);
-
+    let noise = gradientNoise(p * 50.) * 0.005;
+    var c = sdRoundBox(p, vec3f(0.0), vec3f(0.375), 0.075);
+    var s = sdSphere(p, vec3f(0.0), 0.55);
+    var s2 = sdSphere(p, vec3f(0.0), 0.25) + noise;
+    var d = opSmoothSubtraction(c, s, 0.02);
+    d = opUnion(d, s2);
+    // let r = 0.6;
+    // var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
+    // var d = opSmoothSubtraction(s, sdPlane(p, vec3f(-1., 0., 0.), 0.5), 0.025);
+    // d = opSmoothSubtraction(d, sdPlane(p, vec3f(1., 0., 0.), 0.5), 0.025);
+    // var d = head(p);
     return d;
 }
+
+fn sphereCube(p: vec3f) -> f32 {
+    var s = sdSphere(p, vec3f(0.2, -0.2, 0.2), 0.35);
+    var c = sdRoundBox(p, vec3f(-0.2, 0.2, -0.2), vec3f(0.25), 0.075);
+    var d = opSmoothUnion(s, c, 0.2);
+    return d;
+}
+
 fn head(p: vec3f) -> f32 {
     let r = 0.6;
     var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
@@ -174,7 +212,7 @@ fn head(p: vec3f) -> f32 {
 
 fn rippleSphere(p: vec3f) -> f32 {
     let n = gradientNoise(100.0 * p + 0.01);
-    let s = sdSphere(p, vec3f(0.), 0.5) + 0.0025 * sin(200.0 * p.x);
+    let s = sdSphere(p, vec3f(0.), 0.625) + 0.0025 * sin(150.0 * p.x);
     let s2 = sdSphere(p, vec3f(0.375, -0.375, -0.375), 0.375);
     let d = opSmoothSubtraction(s, s2, 0.025);
     // return s + 0.001 * n;
@@ -260,8 +298,10 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     let baseLightPower = 18.0;
 
     // Background
+    var v = length(uv) * .75;
     var fragColor = vec4f(mix(0.1, 0.2, smoothstep(0.0, 1.0, uv.y)));
-    fragColor *= 1.5 / length(uv);
+	fragColor += mix(vec4f(0.6), vec4f(0.0, 0.0, 0.0, 1.0), v);
+    // fragColor *= 1.0 / (length(uv));
 
     const numLights = 4;
     const lights = array<vec3f, numLights>(
@@ -326,7 +366,7 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * baseLightPower * lightPowers[i]; 
             i++;
         }
-        let ambient = vec3f(0.025) * albedo;
+        let ambient = vec3f(0.01) * albedo;
         var color = ambient + Lo;
         
         color = color / (color + vec3f(1.0));
