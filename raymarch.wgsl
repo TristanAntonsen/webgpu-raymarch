@@ -14,7 +14,8 @@ struct VertexOutput {
 const MAX_STEPS = 5000;
 const SURF_DIST = 0.001;
 const MAX_DIST = 100.0;
-const PI = 3.14159265359;
+const PI = 3.141592653592;
+const TAU = 6.283185307185;
 
 ////////////////////////////////////////////////////////////////
 // PBR Helper functions
@@ -87,6 +88,12 @@ fn gradientNoise( p : vec3f ) -> f32
                           dot( simpleHash( i + vec3(1.0,0.0,1.0) ), f - vec3(1.0,0.0,1.0) ), u.x),
                      mix( dot( simpleHash( i + vec3(0.0,1.0,1.0) ), f - vec3(0.0,1.0,1.0) ), 
                           dot( simpleHash( i + vec3(1.0,1.0,1.0) ), f - vec3(1.0,1.0,1.0) ), u.x), u.y), u.z );
+}
+
+fn Rot(a: f32) -> mat2x2f {
+    let s = sin(a);
+    let c = cos(a);
+    return mat2x2f(c, -s, s, c);
 }
 
 fn sdPlane( p: vec3f, n: vec3f, h: f32 ) -> f32
@@ -163,15 +170,13 @@ fn getNormal(p: vec3f) -> vec3f {
     return normalize(vec3f(ddx, ddy, ddz));
 }
 
-fn rayDirection(p: vec2f, ro: vec3f) -> vec3f {
+fn rayDirection(p: vec2f, ro: vec3f, rt: vec3f) -> vec3f {
 
     // screen orientation
-    let cameraTarget = vec3f(0., 0., 1.);
     let vup = vec3f(0., 1.0, 0.0);
     let aspectRatio = rez.y / rez.x;
 
-
-    let vw = normalize(ro - cameraTarget);
+    let vw = normalize(ro - rt);
     let vu = normalize(cross(vup, vw));
     let vv = cross(vw, vu);
     let theta = radians(30.); // half FOV
@@ -179,7 +184,7 @@ fn rayDirection(p: vec2f, ro: vec3f) -> vec3f {
     let viewport_width = aspectRatio * viewport_height;
     let horizontal = -viewport_width * vu;
     let vertical = viewport_height * vv;
-    let focus_dist = length(ro - cameraTarget);
+    let focus_dist = length(ro - rt);
     let center = ro - vw * focus_dist;
 
     let rd = center + p.x * horizontal + p.y * vertical - ro;
@@ -217,15 +222,21 @@ fn vertexMain(input: VertexInput) ->
 fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
     let uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing
+    let m = (vec2(mouse.x, mouse.y) / rez - 0.5) * 2.0; // normalizing
 
-    let ro = vec3f(0., 0., -5.0);
-    let rd = rayDirection(uv, ro);
+    let rt = vec3f(0., 0., 0.);
+    let tuv = normalize(vec3f(mouse, 0.0)-rt);
+    var ro = vec3f(0., 0., -5.0);
+    let rxz = ro.xz * Rot((-m.x*TAU));
+    ro = vec3f(rxz.x, ro.y, rxz.y);
+
+    let rd = rayDirection(uv, ro, rt);
     let d = rayMarch(ro, rd);
 
-    var lx = 1.0 * sin(0.025 * time);
-    var lz = 1.0 * cos(0.025 * time);
-    let lightPos = vec3f(lx,-1, lz);
-    // let lightPos = vec3f(1,-1, -1);
+    // var lx = 1.0 * sin(0.025 * time);
+    // var lz = 1.0 * cos(0.025 * time);
+    // let lightPos = vec3f(lx,-1, lz);
+    let lightPos = vec3f(1,-1, -1);
 
     // let lightPos = vec3f(2.0 * mouse / rez, 0.0);
     // let lightColor = vec3f(1.0,0.95,0.95);
