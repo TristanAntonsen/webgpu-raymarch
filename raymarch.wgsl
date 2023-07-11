@@ -97,6 +97,17 @@ fn Rot(a: f32) -> mat2x2f {
 }
 
 
+fn rotX(p: vec3f, a: f32) -> vec3f {
+    let s = sin(a);
+    let c = cos(a);
+    let m = mat3x3f(
+        1., 0., 0.,
+        0., c, -s,
+        0., s, c,
+        );
+    return m * p;
+}
+
 fn rotY(p: vec3f, a: f32) -> vec3f {
     let s = sin(a);
     let c = cos(a);
@@ -163,7 +174,8 @@ fn orbitControls(po: vec3f) -> vec3f {
     var p = po;
 
     p = rotY(po, -m.x*TAU);
-    p = rotZ(p, m.y*PI);
+    // p = rotZ(p, m.y*PI);
+    p = rotX(p, -m.y*PI);
     
     return p;
 }
@@ -176,11 +188,7 @@ fn getDist(po: vec3f) -> f32 {
     var s2 = sdSphere(p, vec3f(0.0), 0.25) + noise;
     var d = opSmoothSubtraction(c, s, 0.02);
     d = opUnion(d, s2);
-    // let r = 0.6;
-    // var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
-    // var d = opSmoothSubtraction(s, sdPlane(p, vec3f(-1., 0., 0.), 0.5), 0.025);
-    // d = opSmoothSubtraction(d, sdPlane(p, vec3f(1., 0., 0.), 0.5), 0.025);
-    // var d = head(p);
+
     return d;
 }
 
@@ -325,7 +333,7 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
         // PBR Shading
         // material parameters
         let albedo = vec3f(1.0);
-        let roughness = 0.3;
+        let roughness = 0.15;
         let metallic = 0.0;
         var F0 = vec3(0.04);
         F0 = mix(F0, albedo, metallic);
