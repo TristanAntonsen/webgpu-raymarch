@@ -1,13 +1,23 @@
 # Creating a basic ray marcher using WebGPU
 
-This is a very setup to render a WebGPU fragment shader to a canvas element. This was created for experimentation with WebGPU/wgsl and ray marching.
+This is a very simple setup to render a WebGPU fragment shader to a canvas element. This was created for experimentation with WebGPU/wgsl and ray marching. The goal of this is to get a nice looking PBR renderer for SDFs.
+
+---
+### Sample Images
+
+|Ray Marching|2D SDFs|
+|-|-|
+|![](torus.png)|![](normals.png)|
 
 
-WebGPU setup based primarily off of:
+
+
+---
+## References & info:
+
+
+- WebGPU setup based primarily off of:
 https://codelabs.developers.google.com/your-first-webgpu-app#1
-
-
-### References:
 
 - [Inigo Quilez - Ray Marching SDFs](https://iquilezles.org/articles/raymarchingdf/  )
 - [Inigo Quilez - Distance Functions](https://iquilezles.org/articles/distfunctions/)
