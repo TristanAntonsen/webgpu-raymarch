@@ -135,12 +135,40 @@ fn opIntersection(d1: f32, d2: f32) -> f32 {
     return max(d1, d2);
 }
 
-fn getDist(p: vec3f) -> f32 {
+fn orbitControls(po: vec3f) -> vec3f {
+
+    let m = (vec2(mouse.x, mouse.y) / rez - 0.5) * 2.0; // normalizing
+    var p = po;
+    let rxz = p.xz * Rot((-m.x*TAU));
+    p = vec3f(rxz.x, p.y, rxz.y);
+    return p;
+}
+
+fn getDist(po: vec3f) -> f32 {
+    let p = orbitControls(po);
     let r = 0.6;
     var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
-    let off = 0.4;
-    var d = opSubtraction(s, sdPlane(p, vec3f(1., 0., 0.), off));
+    var d = opSmoothSubtraction(s, sdPlane(p, vec3f(-1., 0., 0.), 0.5), 0.025);
+    d = opSmoothSubtraction(d, sdPlane(p, vec3f(1., 0., 0.), 0.5), 0.025);
+
+    return d;
+}
+fn head(p: vec3f) -> f32 {
+    let r = 0.6;
+    var s = sdSphere(p, vec3f(0.0, 0.0, 0.0), r);
+
+    var s2 = sdSphere(vec3f(p.x * 1.8, p.yz), vec3f(0.0, 0.0, 0.6), r * 1.90);
+    s2 = opSubtraction(s2, sdPlane(p, vec3f(0., 1.0, 0.), 0.0));
+    s2 = opSubtraction(s2, sdPlane(p, vec3f(0., -0.5, -1.), 0.3));
+    var d = opSmoothUnion(s, s2, 0.05);
+
+    let off = 0.45;
+    d = opSubtraction(d, sdPlane(p, vec3f(1., 0., 0.), off));
     d = opSubtraction(d, sdPlane(p, vec3f(-1., 0., 0.), off));
+    d = opSubtraction(d, sdPlane(p, vec3f(0., -1., 0.), 0.8));
+    d = opSubtraction(d, sdPlane(p, vec3f(-1., -1., 0.), 0.7));
+    d = opSubtraction(d, sdPlane(p, vec3f(1., -1., 0.), 0.7));
+
     return d;
 }
 
@@ -222,28 +250,33 @@ fn vertexMain(input: VertexInput) ->
 fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
     // Setting up uv coordinates
     let uv = (vec2(pos.x, pos.y) / rez - 0.5) * 2.0; // normalizing
-    let m = (vec2(mouse.x, mouse.y) / rez - 0.5) * 2.0; // normalizing
 
     let rt = vec3f(0., 0., 0.);
-    let tuv = normalize(vec3f(mouse, 0.0)-rt);
     var ro = vec3f(0., 0., -5.0);
-    let rxz = ro.xz * Rot((-m.x*TAU));
-    ro = vec3f(rxz.x, ro.y, rxz.y);
 
     let rd = rayDirection(uv, ro, rt);
     let d = rayMarch(ro, rd);
 
-    // var lx = 1.0 * sin(0.025 * time);
-    // var lz = 1.0 * cos(0.025 * time);
-    // let lightPos = vec3f(lx,-1, lz);
-    let lightPos = vec3f(1,-1, -1);
+    let baseLightPower = 18.0;
 
-    // let lightPos = vec3f(2.0 * mouse / rez, 0.0);
-    // let lightColor = vec3f(1.0,0.95,0.95);
-    // let lightColor = vec3f(0.9, 1.0, 1.0);
-    let lightColor = vec3f(1.0, 1.0, 0.9);
-    let lightPower = 12.0;
-    var fragColor = vec4f(mix(0.2, 0.3, smoothstep(0., 1., uv.y)));
+    // Background
+    var fragColor = vec4f(mix(0.1, 0.2, smoothstep(0.0, 1.0, uv.y)));
+    fragColor *= 1.5 / length(uv);
+
+    const numLights = 4;
+    const lights = array<vec3f, numLights>(
+        vec3f(4.0, -2.0, -4.0),
+        vec3f(-1, -.25, 1.),
+        vec3f(0., -10.0, 0.),
+        vec3f(0., 20.0, 0.)
+    );
+    const lightPowers = array<f32, numLights>( 4.0, 1.0, 2.0, 1.0 );
+    const lightColors = array<vec3f, numLights>(
+        vec3f(1.0, 0.9, 0.9),
+        vec3f(1.0),
+        vec3f(0.9, 0.9, 1.0),
+        vec3f(1.0),
+    );
 
     if (d <= 100.0) {
         let p = ro + rd * d;
@@ -251,12 +284,11 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
 
         // PBR Shading
         // material parameters
-        let albedo = vec3f(0.0);
-        let roughness = 0.8;
+        let albedo = vec3f(1.0);
+        let roughness = 0.3;
         let metallic = 0.0;
         var F0 = vec3(0.04);
         F0 = mix(F0, albedo, metallic);
-
 
         // reflectance equation
         // radiance
@@ -264,30 +296,37 @@ fn fragmentMain(@builtin(position) pos: vec4<f32>) -> @location(0) vec4f {
 
         var Lo = vec3f(0.);
         // calculate per-light radiance
-        let L = normalize(lightPos - p);
-        let H = normalize(V + L);
-        let distance    = length(lightPos - p);
-        let attenuation = 1.0 / (distance * distance);
-        let radiance    = lightColor * attenuation;        
-        
-        // cook-torrance brdf
-        let NDF = DistributionGGX(N, H, roughness);        
-        let G   = GeometrySmith(N, V, L, roughness);      
-        let F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
-        
-        let kS = F;
-        var kD = vec3f(1.0) - kS;
-        kD *= 1.0 - metallic;	  
-        
-        let numerator   = NDF * G * F;
-        let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-        let specular    = numerator / denominator;  
+        //WGSL
+        var i = 0;
+        var lightPos: vec3f;
+        loop {
+            if i >= numLights { break; }
+            lightPos = lights[i];
+            let L = normalize(lightPos - p);
+            let H = normalize(V + L);
+            let distance    = length(lightPos - p);
+            let attenuation = 1.0 / (distance * distance);
+            let radiance    = lightColors[i] * attenuation;        
             
-        // add to outgoing radiance Lo
-        let NdotL = max(dot(N, L), 0.0);                
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL * lightPower; 
-        
-        let ambient = vec3f(0.0025) * albedo;
+            // cook-torrance brdf
+            let NDF = DistributionGGX(N, H, roughness);        
+            let G   = GeometrySmith(N, V, L, roughness);      
+            let F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
+            
+            let kS = F;
+            var kD = vec3f(1.0) - kS;
+            kD *= 1.0 - metallic;	  
+            
+            let numerator   = NDF * G * F;
+            let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+            let specular    = numerator / denominator;  
+                
+            // add to outgoing radiance Lo
+            let NdotL = max(dot(N, L), 0.0);                
+            Lo += (kD * albedo / PI + specular) * radiance * NdotL * baseLightPower * lightPowers[i]; 
+            i++;
+        }
+        let ambient = vec3f(0.025) * albedo;
         var color = ambient + Lo;
         
         color = color / (color + vec3f(1.0));
